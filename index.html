@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+<button id="test">显示DatePicker</button>
+<script type="text/javascript" src="./picker.min.js"></script>
+<script type="text/javascript">
+    /* 基于：https://github.com/ustbhuangyi/picker */
+
+    /* 构造函数 */
+    function DatePicker(options) {
+        var opts = options || {};
+
+        console.log(opts);
+
+        this.minDate = opts.minDate;
+        this.maxDate = opts.maxDate;
+        this.data = [[], [], []];
+        this.picker = null;
+        this.d1 = null;
+        this.d2 = null;
+        this.selectYear = "";
+        this.selectMonth = "";
+        /* 配置文件 */
+        this.config = {
+            data: this.data,
+            selectedIndex: [0, 0, 0],
+            title: ''
+        };
+
+        /* 设置最大值 */
+        if (this.minDate) {
+            this.d1 = new Date(this.minDate);
+        }
+
+        if (this.maxDate) {
+            this.d2 = new Date(this.maxDate);
+        }
+
+        this.init();
+    }
+
+    DatePicker.prototype = {
+        constructor: DatePicker,
+        init: function () {
+            var self = this;
+
+            /* 初始化 */
+            this.initPickerDate(this.minDate, this.maxDate, function () {
+                self.picker = new Picker(self.config);
+            });
+
+            /* 事件函数 */
+            this.events();
+            //console.log(this.data);
+        },
+        events: function () {
+            var self = this;
+            var test = document.getElementById("test");
+
+
+            var currMonthSelect = 0;
+            var currMonthTotalDays = 0;
+            var nextMonthMaxDay = 0;
+
+            this.picker.on('picker.change', function (index, selectedIndex) {
+                console.log(index);
+                console.log(selectedIndex);
+                /* 滑动的是年选项 */
+                if (index === 0) {
+                    self.selectYear = self.data[index][selectedIndex].text;
+                    self.filtersMonthsByYear(self.selectYear);
+                }
+                /* 滑动的是月选项 */
+                if (index === 1) {
+                    self.selectMonth = self.data[index][selectedIndex].text;
+
+                }
+                /* 滑动的是天选项 */
+                if (index === 2) {
+                    currMonthSelect = self.data[index][selectedIndex].text;
+                    currMonthTotalDays = self.data[index].length;
+
+                    console.log(currMonthSelect);
+                    console.log(currMonthTotalDays);
+                }
+
+                /* 接下来选中月份的最大天数 */
+                nextMonthMaxDay = self.getDaysByYearAndMonth(self.selectYear, self.selectMonth).length;
+
+
+                console.log(self.selectYear);
+                console.log(self.selectMonth);
+
+                self.picker.refillColumn(2, self.getDaysByYearAndMonth(self.selectYear, self.selectMonth));
+
+                /*
+                 *  退位:
+                 *  如果当前月份的最大天数大于接下来选中月份的最大天数,
+                 *  并且当前月份当前选中的是最后一天就是最大的天数,
+                 *  那么久退位到接下来选中月份的，最后一天！
+                 *  就是给接下来选中月份的最后一天添加当前选中效果
+                 *
+                 * */
+                if (currMonthTotalDays > nextMonthMaxDay && currMonthSelect == currMonthTotalDays) {
+                    self.picker.scrollColumn(2, nextMonthMaxDay - 1);
+                }
+
+            });
+            /* 点击弹出datepicker */
+            test.addEventListener('click', function () {
+                self.picker.show();
+            });
+        },
+        initPickerDate: function (minDate, maxDate, cb) {
+            var min_year = this.d1.getFullYear();
+            var max_year = this.d2.getFullYear();
+
+            /* 获取年的数据 */
+            for (var i = min_year; i <= max_year; i++) {
+                this.data[0].push({
+                    text: '' + i + '',
+                    value: i
+                });
+            }
+            for (var i = 1; i <= 12; i++) {
+                this.data[1].push({
+                    text: '' + i + '',
+                    value: i
+                });
+            }
+
+            /* 获取当前月的天数根据年和月 */
+            var now_year = new Date().getFullYear();
+            var now_month = new Date().getMonth() + 1;
+            var now_day = new Date().getDate();
+
+            this.data[2] = this.getDaysByYearAndMonth(now_year, now_month);
+
+            /* 设置默认选中 */
+            this.config.selectedIndex[0] = this.setSelectPosition(this.data[0], now_year);
+            this.config.selectedIndex[1] = this.setSelectPosition(this.data[1], now_month);
+            this.config.selectedIndex[2] = this.setSelectPosition(this.data[2], now_day);
+
+            /* 回调 */
+            cb();
+        },
+        getDaysByYearAndMonth(year, month){
+            year = year ? year : new Date().getFullYear();
+            month = month ? month : new Date().getMonth() + 1;
+            /*
+             * 如果不是在最大值或最小值的情况 ， 直接通过年月获取对应的天数
+             * 如果等于最小值，并且月份也等于最小的， 那么根据这个年和月获取的天数，出去调设置值之前的。
+             * */
+            var min_year = this.d1.getFullYear();
+            var min_year_month = this.d1.getMonth() + 1;
+            var min_year_day = this.d1.getDate();
+
+            var max_year = this.d2.getFullYear();
+            var max_year_month = this.d2.getMonth() + 1;
+            var max_year_day = this.d2.getDate();
+            var days = 0;
+            var arr = [];
+
+            console.log(year)
+            console.log(month)
+            //console.log(year == min_year)
+
+
+            if (year == min_year && month == min_year_month) {
+                //console.log("最小年和月...")
+                days = new Date(year, month, 0).getDate();
+                arr = [];
+                for (var i = min_year_day; i <= days; i++) {
+                    arr.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+            } else if (year == max_year && month == max_year_month) {
+                //console.log("最大年和月...")
+                days = new Date(year, month, 0).getDate();
+                arr = [];
+                for (var i = 1; i <= max_year_day; i++) {
+                    arr.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+            } else {
+                //console.log("正常年...")
+                days = new Date(year, month, 0).getDate();
+                arr = [];
+                for (var i = 1; i <= days; i++) {
+                    arr.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+            }
+
+            return arr;
+        },
+        setSelectPosition(arr, tag){
+            var ind = 0;
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i].text == tag) {
+                    ind = i;
+                    break;
+                }
+            }
+            return ind;
+        },
+        filtersMonthsByYear: function (year) {
+
+            var min_year = this.d1.getFullYear();
+            var min_year_month = this.d1.getMonth() + 1;
+            var max_year = this.d2.getFullYear();
+            var max_year_month = this.d2.getMonth() + 1;
+
+            var newMonths = [];
+            if (year == min_year) {
+                newMonths = [];
+                for (var i = min_year_month; i <= 12; i++) {
+                    newMonths.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+                this.picker.refillColumn(1, newMonths);
+                this.picker.scrollColumn(1, 0);
+                this.selectMonth = min_year_month;
+            } else {
+                newMonths = [];
+                for (var i = 1; i <= 12; i++) {
+                    newMonths.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+                this.picker.refillColumn(1, newMonths);
+            }
+
+            if (year == max_year) {
+                newMonths = [];
+                for (var i = 1; i <= max_year_month; i++) {
+                    newMonths.push({
+                        text: '' + i + '',
+                        value: i
+                    });
+                }
+                this.picker.refillColumn(1, newMonths);
+                this.picker.scrollColumn(1, max_year_month - 1);
+                this.selectMonth = max_year_month;
+
+            }
+            this.selectYear = year;
+        }
+
+    };
+
+    /* 实例化对象 */
+    new DatePicker({
+        minDate: "2010-05-12",
+        maxDate: "2018-10-23"
+    })
+</script>
+</body>
+</html>
